@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการหลังบ้าน (Admin Panel) - สำนักงานทรัพยากรน้ำแห่งชาติ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Sarabun', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#0D8ABC',
+                        secondary: '#1e293b',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 h-screen flex overflow-hidden">
+
+    <!-- Admin Sidebar -->
+    <aside class="w-64 bg-slate-900 text-white flex flex-col shrink-0 transition-all duration-300" id="admin-sidebar">
+        <!-- Brand -->
+        <div class="h-16 flex items-center gap-3 px-6 bg-slate-800 border-b border-slate-700">
+            <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold">A</div>
+            <span class="font-bold text-lg tracking-wide">ระบบจัดการหลังบ้าน</span>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+            <p class="px-3 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ภาพรวม</p>
+            <a href="#" onclick="switchAdminPage('dashboard')" class="admin-nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group" data-page="dashboard">
+                <i class="fa-solid fa-chart-line w-5 text-center group-hover:text-blue-400 transition"></i>
+                <span class="text-sm font-medium">แดชบอร์ด</span>
+            </a>
+
+            <p class="px-3 text-xs font-bold text-slate-500 uppercase tracking-wider mt-6 mb-2">การจัดการ</p>
+            <a href="#" onclick="switchAdminPage('users')" class="admin-nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group" data-page="users">
+                <i class="fa-solid fa-users w-5 text-center group-hover:text-blue-400 transition"></i>
+                <span class="text-sm font-medium">จัดการสมาชิก</span>
+            </a>
+
+
+            <a href="#" onclick="switchAdminPage('data')" class="admin-nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group" data-page="data">
+                <i class="fa-solid fa-database w-5 text-center group-hover:text-blue-400 transition"></i>
+                <span class="text-sm font-medium">จัดการคลังข้อมูล</span>
+            </a>
+
+            <p class="px-3 text-xs font-bold text-slate-500 uppercase tracking-wider mt-6 mb-2">งานและบุคลากร</p>
+            <a href="#" onclick="switchAdminPage('tasks')" class="admin-nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group" data-page="tasks">
+                <i class="fa-solid fa-list-check w-5 text-center group-hover:text-blue-400 transition"></i>
+                <span class="text-sm font-medium">มอบหมายงาน</span>
+            </a>
+            <a href="#" onclick="switchAdminPage('requests')" class="admin-nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group" data-page="requests">
+                <i class="fa-solid fa-clipboard-question w-5 text-center group-hover:text-blue-400 transition"></i>
+                <span class="text-sm font-medium">ติดตามแบบสำรวจ</span>
+            </a>
+            <a href="#" onclick="switchAdminPage('assessment')" class="admin-nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group" data-page="assessment">
+                <i class="fa-solid fa-star-half-stroke w-5 text-center group-hover:text-blue-400 transition"></i>
+                <span class="text-sm font-medium">ประเมินผล</span>
+            </a>
+
+            <p class="px-3 text-xs font-bold text-slate-500 uppercase tracking-wider mt-6 mb-2">บัญชีของฉัน</p>
+            <a href="#" onclick="switchAdminPage('profile')" class="admin-nav-link flex items-center gap-3 px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group" data-page="profile">
+                <i class="fa-solid fa-user-gear w-5 text-center group-hover:text-blue-400 transition"></i>
+                <span class="text-sm font-medium">ข้อมูลส่วนตัว</span>
+            </a>
+        </nav>
+
+        <!-- User Profile -->
+        <div class="p-4 border-t border-slate-700 bg-slate-900">
+            <div class="flex items-center gap-3">
+                <div onclick="switchAdminPage('profile')" class="flex items-center gap-3 flex-1 cursor-pointer hover:bg-slate-800 p-2 -ml-2 rounded-lg transition group">
+                    <img id="admin-avatar" src="" class="w-9 h-9 rounded-full bg-slate-700 group-hover:ring-2 group-hover:ring-blue-500 transition">
+                    <div class="flex-1 min-w-0">
+                        <p id="admin-name" class="text-sm font-medium text-white truncate">Loading...</p>
+                        <p id="admin-role" class="text-xs text-slate-400 truncate">Loading...</p>
+                    </div>
+                </div>
+                <button onclick="handleAdminLogout()" class="text-slate-400 hover:text-red-400 transition p-2" title="ออกจากระบบ">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <!-- Header -->
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-20 shrink-0">
+            <div class="flex items-center gap-4">
+                <button id="sidebar-toggle" class="text-slate-500 hover:text-slate-800 transition p-1">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+                <h2 id="page-title" class="text-xl font-bold text-slate-800">Overview</h2>
+            </div>
+            
+            <div class="flex items-center gap-6">
+                <!-- Backend Notifications -->
+                <button class="relative text-slate-500 hover:text-blue-600 transition group">
+                    <i class="fa-solid fa-bell text-xl"></i>
+                    <span class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white">3</span>
+                </button>
+
+                <!-- Go to Home -->
+                <a href="index.html" class="text-slate-500 hover:text-blue-600 transition" title="กลับหน้าบ้าน (Frontend)">
+                    <i class="fa-solid fa-house text-xl"></i>
+                </a>
+            </div>
+        </header>
+
+        <!-- Dynamic Content -->
+        <div id="admin-content" class="flex-1 overflow-y-auto p-6 bg-slate-50">
+            <!-- Content Injected Here -->
+        </div>
+    </main>
+
+
+
+    <!-- Scripts -->
+    <script src="mockData.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>
