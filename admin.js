@@ -25,37 +25,114 @@ function checkAdminAuth() {
 }
 
 function showAdminPanel() {
-    document.getElementById('admin-sidebar').classList.remove('hidden');
-    
     // Update Profile
     document.getElementById('admin-name').innerText = adminUser.name;
     document.getElementById('admin-role').innerText = adminUser.role.toUpperCase();
     document.getElementById('admin-avatar').src = adminUser.avatar;
 
-    // Initialize Sidebar Toggle
+    // Initialize Sidebar Toggle if not already bound
     const toggleBtn = document.getElementById('sidebar-toggle');
-    const sidebar = document.getElementById('admin-sidebar');
-    
-    // Check screen size for initial state (Collapse on mobile default)
-    if(window.innerWidth < 768 && sidebar) {
-        sidebar.classList.add('w-0', 'opacity-0', 'overflow-hidden');
-        sidebar.classList.remove('w-64');
-    }
-    
-    if(toggleBtn && sidebar) {
-        toggleBtn.addEventListener('click', () => {
-             // Toggle width
-             if (sidebar.classList.contains('w-64')) {
-                 sidebar.classList.remove('w-64');
-                 sidebar.classList.add('w-0', 'opacity-0', 'overflow-hidden');
-             } else {
-                 sidebar.classList.add('w-64');
-                 sidebar.classList.remove('w-0', 'opacity-0', 'overflow-hidden');
-             }
-        });
+    if(toggleBtn) {
+        toggleBtn.onclick = toggleAdminSidebar; 
     }
 
+    // Initialize Notifications
+    updateAdminNotifications();
+
     switchAdminPage('dashboard');
+}
+
+function updateAdminNotifications() {
+    if (!adminUser) return;
+    
+    // Filter tasks for current user that are 'urgent' OR 'overdue' OR due within 3 days (mock logic)
+    // For MOCK_DB, we'll just check status 'urgent'/'overdue' assigned to this user
+    const myUrgentTasks = MOCK_DB.TASKS.filter(t => 
+        t.assignee_id === adminUser.id && 
+        (t.status === 'urgent' || t.status === 'overdue' || t.status === 'in_progress')
+    );
+    
+    // Sort: Overdue first, then Urgent
+    myUrgentTasks.sort((a, b) => {
+        if(a.status === 'overdue') return -1;
+        if(b.status === 'overdue') return 1;
+        return 0;
+    });
+
+    const badge = document.getElementById('admin-notification-badge');
+    const list = document.getElementById('admin-notification-list');
+    
+    if (badge) {
+        if (myUrgentTasks.length > 0) {
+            badge.innerText = myUrgentTasks.length;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+    
+    if (list) {
+        if (myUrgentTasks.length === 0) {
+            list.innerHTML = `<div class="p-4 text-center text-sm text-slate-500">ไม่มีงานที่ต้องเร่งดำเนินการ</div>`;
+        } else {
+            list.innerHTML = myUrgentTasks.map(t => `
+                <div class="p-3 border-b border-slate-50 hover:bg-slate-50 transition cursor-pointer" onclick="switchAdminPage('tasks')">
+                    <p class="text-sm font-bold text-slate-800 truncate">${t.title}</p>
+                    <div class="flex justify-between items-center mt-1">
+                        <span class="text-xs text-slate-500"><i class="fa-regular fa-clock"></i> ${t.due_date}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                            t.status === 'overdue' ? 'bg-red-100 text-red-600' : 
+                            t.status === 'urgent' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
+                        }">
+                           ${t.status === 'overdue' ? 'เกินกำหนด' : t.status === 'urgent' ? 'เร่งด่วน' : 'กำลังดำเนินการ'}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+}
+
+function toggleAdminNotifications() {
+    const dropdown = document.getElementById('admin-notification-dropdown');
+    if (dropdown) {
+        dropdown.classList.toggle('hidden');
+    }
+}
+
+function toggleAdminSidebar() {
+    const sidebar = document.getElementById('admin-sidebar');
+    if (!sidebar) return;
+    
+    // Check if desktop
+    if (window.innerWidth >= 768) {
+        // Desktop: Toggle 'md:flex' to show/hide
+        sidebar.classList.toggle('md:flex');
+    } else {
+        // Mobile: Toggle 'hidden' and overlay
+        if (sidebar.classList.contains('hidden')) {
+            // Show
+            sidebar.classList.remove('hidden');
+            
+            // Add overlay
+            let overlay = document.getElementById('admin-sidebar-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'admin-sidebar-overlay';
+                overlay.className = 'fixed inset-0 bg-black/50 z-[25] md:hidden';
+                overlay.onclick = toggleAdminSidebar;
+                document.body.appendChild(overlay);
+            }
+            overlay.classList.remove('hidden');
+        } else {
+            // Hide
+            sidebar.classList.add('hidden');
+            
+            // Remove overlay
+            const overlay = document.getElementById('admin-sidebar-overlay');
+            if (overlay) overlay.classList.add('hidden');
+        }
+    }
 }
 
 function handleAdminLogout() {
@@ -92,7 +169,7 @@ function switchAdminPage(page) {
         titleEl.innerText = 'จัดการคลังข้อมูล (Data Management)';
         renderDataPage(contentDiv);
     } else if (page === 'tasks') {
-        titleEl.innerText = 'มอบหมายงาน (Task Assignment)';
+        titleEl.innerText = 'ติดตามบริการข้อมูล (Data Service Tracking)';
         renderTasksPage(contentDiv);
     } else if (page === 'assessment') {
         titleEl.innerText = 'ประเมินผลการปฏิบัติงาน (Assessment)';
@@ -109,7 +186,7 @@ function switchAdminPage(page) {
 // --- Renderers ---
 
 function renderDashboard(container) {
-    const totalTasks = MOCK_DB.TASKS.length;
+    const totalTasks = MOCK_DB.TASKS.length + MOCK_DB.DATA_REQUESTS.length;
     const pendingTasks = MOCK_DB.TASKS.filter(t => t.status === 'pending').length;
     const inProgressTasks = MOCK_DB.TASKS.filter(t => t.status === 'in_progress').length;
     const completedTasks = MOCK_DB.TASKS.filter(t => t.status === 'completed').length;
@@ -124,7 +201,7 @@ function renderDashboard(container) {
 
     container.innerHTML = `
         <!-- Main Stats Grid -->
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
             <div onclick="switchAdminPage('tasks')" class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 cursor-pointer hover:shadow-md hover:border-blue-300 transition group">
                 <div class="flex items-center gap-3 mb-2">
                     <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
@@ -321,73 +398,124 @@ function renderUsersPage(container) {
     const divisions = [...new Set(MOCK_DB.USERS_LIST.map(u => u.division))];
     const groups = [...new Set(MOCK_DB.USERS_LIST.map(u => u.group))];
     const roles = [...new Set(MOCK_DB.USERS_LIST.map(u => u.role))];
+    // Statistics
+    const totalUsers = MOCK_DB.USERS_LIST.length;
+    const adminCount = MOCK_DB.USERS_LIST.filter(u => u.role === 'admin').length;
+    const staffCount = MOCK_DB.USERS_LIST.filter(u => u.role === 'staff').length;
+    const userCount = MOCK_DB.USERS_LIST.filter(u => u.role === 'user').length;
 
     container.innerHTML = `
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-             <!-- Header & Filters -->
-             <div class="p-6 border-b border-slate-200 bg-slate-50">
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                    <div>
-                        <h3 class="font-bold text-lg text-slate-800">จัดการสมาชิก (User Management)</h3>
-                        <p class="text-xs text-slate-500">บริหารจัดการผู้ใช้งานในระบบ</p>
-                    </div>
-                     <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 shadow-sm">
-                        <i class="fa-solid fa-plus"></i> เพิ่มผู้ใช้
-                    </button>
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div onclick="applyUserFilter('')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-blue-300 transition group">
+                <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-users"></i>
                 </div>
+                <div>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-blue-600 transition">ผู้ใช้งานทั้งหมด</h4>
+                    <p class="text-2xl font-bold text-slate-800">${totalUsers} คน</p>
+                </div>
+            </div>
+             <div onclick="applyUserFilter('admin')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-purple-300 transition group">
+                <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+                <div>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-purple-600 transition">ผู้ดูแลระบบ (Admin)</h4>
+                    <p class="text-2xl font-bold text-slate-800">${adminCount} คน</p>
+                </div>
+            </div>
+             <div onclick="applyUserFilter('staff')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-green-300 transition group">
+                <div class="w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-user-tie"></i>
+                </div>
+                <div>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-green-600 transition">เจ้าหน้าที่ (Staff)</h4>
+                    <p class="text-2xl font-bold text-slate-800">${staffCount} คน</p>
+                </div>
+            </div>
+             <div onclick="applyUserFilter('user')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-slate-400 transition group">
+                <div class="w-12 h-12 bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <div>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-slate-600 transition">ผู้ใช้ทั่วไป (User)</h4>
+                    <p class="text-2xl font-bold text-slate-800">${userCount} คน</p>
+                </div>
+            </div>
+        </div>
 
-                <!-- Filters -->
-                <div class="flex flex-wrap items-end gap-4 p-4 bg-white rounded-lg border border-slate-200 shadow-sm">
-                    <div class="flex-1 min-w-[150px]">
-                        <label class="block text-xs font-bold text-slate-500 mb-1">กอง/สำนัก (Division)</label>
-                        <select id="filter-division" onchange="filterUsers()" class="w-full text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+        <!-- Filters & Actions -->
+        <div class="flex flex-col md:flex-row items-end gap-4 mb-6">
+            <!-- Filters -->
+            <div class="flex-1 w-full bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-end gap-4">
+                <div class="flex-1 min-w-[150px]">
+                    <label class="block text-xs font-bold text-slate-500 mb-1">กอง/สำนัก (Division)</label>
+                    <select id="filter-division" onchange="filterUsers()" class="w-full text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">ทั้งหมด</option>
+                        ${divisions.map(d => `<option value="${d}">${d}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[150px]">
+                    <label class="block text-xs font-bold text-slate-500 mb-1">กลุ่ม/ฝ่าย (Group)</label>
+                    <select id="filter-group" onchange="filterUsers()" class="w-full text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                             <option value="">ทั้งหมด</option>
-                            ${divisions.map(d => `<option value="${d}">${d}</option>`).join('')}
-                        </select>
-                    </div>
+                            ${groups.map(g => `<option value="${g}">${g}</option>`).join('')}
+                    </select>
+                </div>
                     <div class="flex-1 min-w-[150px]">
-                        <label class="block text-xs font-bold text-slate-500 mb-1">กลุ่ม/ฝ่าย (Group)</label>
-                        <select id="filter-group" onchange="filterUsers()" class="w-full text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                             <option value="">ทั้งหมด</option>
-                             ${groups.map(g => `<option value="${g}">${g}</option>`).join('')}
-                        </select>
-                    </div>
-                     <div class="flex-1 min-w-[150px]">
-                        <label class="block text-xs font-bold text-slate-500 mb-1">สิทธิ์ (Role)</label>
-                        <select id="filter-role" onchange="filterUsers()" class="w-full text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                             <option value="">ทั้งหมด</option>
-                             ${roles.map(r => `<option value="${r}">${r.toUpperCase()}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div>
-                         <div class="text-right">
-                            <span class="text-xs text-slate-400 font-medium uppercase">จำนวนทั้งหมด</span>
-                            <div class="text-xl font-bold text-blue-600" id="user-count">${MOCK_DB.USERS_LIST.length}</div>
-                        </div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">สิทธิ์ (Role)</label>
+                    <select id="filter-role" onchange="filterUsers()" class="w-full text-sm border-slate-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">ทั้งหมด</option>
+                            ${roles.map(r => `<option value="${r}">${r.toUpperCase()}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="flex items-center gap-4">
+                        <div class="text-right pl-4 border-l border-slate-200">
+                        <span class="text-xs text-slate-400 font-medium uppercase block">จำนวนทั้งหมด</span>
+                        <span class="text-xl font-bold text-blue-600 leading-none" id="user-count">${MOCK_DB.USERS_LIST.length}</span>
                     </div>
                 </div>
             </div>
 
+            <!-- Action Button -->
+            <button class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm whitespace-nowrap h-full" onclick="alert('Open Add User Modal')">
+                <i class="fa-solid fa-plus"></i> เพิ่มผู้ใช้
+            </button>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <!-- Table -->
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider border-b border-slate-200">
-                        <th class="p-4 font-bold">ชื่อ - นามสกุล</th>
-                        <th class="p-4 font-bold">Username</th>
-                        <th class="p-4 font-bold">Role</th>
-                        <th class="p-4 font-bold">สำนัก/กลุ่ม</th>
-                        <th class="p-4 font-bold text-right">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100" id="users-table-body">
-                    <!-- Rows will be populated by filterUsers() -->
-                </tbody>
-            </table>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[800px]">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider border-b border-slate-200">
+                            <th class="p-4 font-bold">ชื่อ - นามสกุล</th>
+                            <th class="p-4 font-bold">Username</th>
+                            <th class="p-4 font-bold">Role</th>
+                            <th class="p-4 font-bold">สำนัก/กลุ่ม</th>
+                            <th class="p-4 font-bold text-right">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100" id="users-table-body">
+                        <!-- Rows will be populated by filterUsers() -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     `;
-    
+
     // Initial Render
     filterUsers();
+}
+
+// Helper to apply filter from cards
+function applyUserFilter(role) {
+    const roleSelect = document.getElementById('filter-role');
+    if (roleSelect) {
+        roleSelect.value = role;
+        filterUsers();
+    }
 }
 
 function filterUsers() {
@@ -523,30 +651,30 @@ function renderDataPage(container) {
     container.innerHTML = `
         <!-- Summary Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+            <div onclick="applyDataFilter('')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-blue-300 transition group">
                 <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-xl">
                     <i class="fa-solid fa-layer-group"></i>
                 </div>
                 <div>
-                    <h4 class="text-slate-500 text-sm font-bold uppercase">ชุดข้อมูลทั้งหมด</h4>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-blue-600 transition">ชุดข้อมูลทั้งหมด</h4>
                     <p class="text-2xl font-bold text-slate-800">${totalItems} รายการ</p>
                 </div>
             </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+            <div onclick="applyDataFilter('Shapefile')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-orange-300 transition group">
                  <div class="w-12 h-12 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center text-xl">
                     <i class="fa-solid fa-map"></i>
                 </div>
                 <div>
-                    <h4 class="text-slate-500 text-sm font-bold uppercase">แผนที่ (Shapefile)</h4>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-orange-600 transition">แผนที่ (Shapefile)</h4>
                     <p class="text-2xl font-bold text-slate-800">${shapefiles} รายการ</p>
                 </div>
             </div>
-             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+             <div onclick="applyDataFilter('API Service')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-purple-300 transition group">
                  <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center text-xl">
                     <i class="fa-solid fa-cloud"></i>
                 </div>
                 <div>
-                    <h4 class="text-slate-500 text-sm font-bold uppercase">API Services</h4>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-purple-600 transition">API Services</h4>
                     <p class="text-2xl font-bold text-slate-800">${apis} รายการ</p>
                 </div>
             </div>
@@ -562,50 +690,78 @@ function renderDataPage(container) {
                     <i class="fa-solid fa-plus"></i> นำเข้าข้อมูลใหม่
                 </button>
             </div>
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider border-b border-slate-200">
-                        <th class="p-4 font-bold">ชื่อชุดข้อมูล</th>
-                        <th class="p-4 font-bold">ประเภท</th>
-                        <th class="p-4 font-bold">เจ้าของข้อมูล</th>
-                        <th class="p-4 font-bold">ปีงบฯ</th>
-                        <th class="p-4 font-bold">ผู้ลงข้อมูล</th>
-                        <th class="p-4 font-bold">Update ล่าสุด</th>
-                        <th class="p-4 font-bold text-right">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                     ${MOCK_DB.CATALOG.map(item => `
-                        <tr class="hover:bg-blue-50/30 transition group" id="row-data-${item.id}">
-                            <td class="p-4">
-                                <span class="font-bold text-slate-700 block">${item.title}</span>
-                                <span class="text-xs text-slate-400">ID: ${item.id}</span>
-                            </td>
-                            <td class="p-4">
-                                <span class="px-2 py-1 rounded text-xs font-bold bg-${item.typeColor}-100 text-${item.typeColor}-700 border border-${item.typeColor}-200">
-                                    <i class="fa-solid ${item.icon} mr-1"></i> ${item.type}
-                                </span>
-                            </td>
-                            <td class="p-4 text-slate-600 text-sm">${item.metadata?.owner || '-'}</td>
-                            <td class="p-4 text-slate-600 text-sm">${item.year}</td>
-                            <td class="p-4 text-slate-600 text-sm">
-                                <span class="flex items-center gap-2">
-                                    <i class="fa-solid fa-user-pen text-slate-400"></i> ${item.uploader || 'System'}
-                                </span>
-                            </td>
-                            <td class="p-4 text-slate-600 text-sm flex items-center gap-2">
-                                <i class="fa-regular fa-clock text-slate-400"></i> ${item.metadata?.last_updated || '-'}
-                            </td>
-                            <td class="p-4 text-right space-x-2">
-                                <button onclick="openEditDataModal(${item.id})" class="text-slate-400 hover:text-blue-600 transition p-2 rounded-full hover:bg-blue-100"><i class="fa-solid fa-pen-to-square"></i></button>
-                                <button onclick="mockDeleteData(${item.id})" class="text-slate-400 hover:text-red-600 transition p-2 rounded-full hover:bg-red-100"><i class="fa-solid fa-trash-can"></i></button>
-                            </td>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[900px]">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider border-b border-slate-200">
+                            <th class="p-4 font-bold">ชื่อชุดข้อมูล</th>
+                            <th class="p-4 font-bold">ประเภท</th>
+                            <th class="p-4 font-bold">เจ้าของข้อมูล</th>
+                            <th class="p-4 font-bold">ปีงบฯ</th>
+                            <th class="p-4 font-bold">ผู้ลงข้อมูล</th>
+                            <th class="p-4 font-bold">Update ล่าสุด</th>
+                            <th class="p-4 font-bold text-right">จัดการ</th>
                         </tr>
-                     `).join('')}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100" id="data-table-body">
+                        <!-- Populated by filterData -->
+                    </tbody>
+                </table>
+            </div>
         </div>
     `;
+    
+    // Store filter state in a closure or global if needed, but for now we'll just use a module-level variable or parameter. 
+    // Since admin.js is one big file, we can use a hidden field or just a global variable.
+    // Let's use a global variable `currentDataFilter` for simplicity in this context, or attach to window.
+    window.currentDataFilter = ''; // Reset on render
+    filterData();
+}
+
+function applyDataFilter(type) {
+    window.currentDataFilter = type;
+    filterData();
+}
+
+function filterData() {
+    const type = window.currentDataFilter || '';
+    const filtered = MOCK_DB.CATALOG.filter(item => !type || item.type === type);
+    
+    const tbody = document.getElementById('data-table-body');
+    if(!tbody) return;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400">ไม่พบข้อมูล</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(item => `
+        <tr class="hover:bg-blue-50/30 transition group" id="row-data-${item.id}">
+            <td class="p-4">
+                <span class="font-bold text-slate-700 block">${item.title}</span>
+                <span class="text-xs text-slate-400">ID: ${item.id}</span>
+            </td>
+            <td class="p-4">
+                <span class="px-2 py-1 rounded text-xs font-bold bg-${item.typeColor}-100 text-${item.typeColor}-700 border border-${item.typeColor}-200">
+                    <i class="fa-solid ${item.icon} mr-1"></i> ${item.type}
+                </span>
+            </td>
+            <td class="p-4 text-slate-600 text-sm">${item.metadata?.owner || '-'}</td>
+            <td class="p-4 text-slate-600 text-sm">${item.year}</td>
+            <td class="p-4 text-slate-600 text-sm">
+                <span class="flex items-center gap-2">
+                    <i class="fa-solid fa-user-pen text-slate-400"></i> ${item.uploader || 'System'}
+                </span>
+            </td>
+            <td class="p-4 text-slate-600 text-sm flex items-center gap-2">
+                <i class="fa-regular fa-clock text-slate-400"></i> ${item.metadata?.last_updated || '-'}
+            </td>
+            <td class="p-4 text-right space-x-2">
+                <button onclick="openEditDataModal(${item.id})" class="text-slate-400 hover:text-blue-600 transition p-2 rounded-full hover:bg-blue-100"><i class="fa-solid fa-pen-to-square"></i></button>
+                <button onclick="mockDeleteData(${item.id})" class="text-slate-400 hover:text-red-600 transition p-2 rounded-full hover:bg-red-100"><i class="fa-solid fa-trash-can"></i></button>
+            </td>
+        </tr>
+    `).join('');
 }
 
 function mockAddData() {
@@ -707,81 +863,92 @@ function mockDeleteData(id) {
 }
 
 function renderTasksPage(container) {
+    const tasks = MOCK_DB.TASKS || [];
+    const inProgress = tasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length;
+    const completed = tasks.filter(t => t.status === 'completed').length;
+    const urgent = tasks.filter(t => t.status === 'urgent' || t.status === 'overdue').length;
+
     container.innerHTML = `
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-            <h3 class="font-bold text-lg text-slate-800 mb-4">มอบหมายงานใหม่ (Assign New Task)</h3>
-            <form class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-slate-700 mb-1">ชื่องาน</label>
-                    <input type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" placeholder="เช่น ตรวจสอบข้อมูล...">
+        <!-- Summary Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div onclick="applyTaskFilter('')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-blue-300 transition group">
+                <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-clipboard-list"></i>
                 </div>
-                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">ผู้รับผิดชอบ</label>
-                    <select class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
-                        ${MOCK_DB.USERS_LIST.filter(u => u.role === 'staff').map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
-                    </select>
+                <div>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-blue-600 transition">งานทั้งหมด</h4>
+                    <p class="text-2xl font-bold text-slate-800">${tasks.length} งาน</p>
                 </div>
-                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">กำหนดส่ง</label>
-                    <input type="date" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div onclick="applyTaskFilter('in_progress')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-orange-300 transition group">
+                <div class="w-12 h-12 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-spinner"></i>
                 </div>
-                <div class="md:col-span-4 flex justify-end">
-                     <button type="button" onclick="alert('จำลองการมอบหมายงานสำเร็จ')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">บันทึกและแจ้งเตือน</button>
+                <div>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-orange-600 transition">กำลังดำเนินการ</h4>
+                    <p class="text-2xl font-bold text-slate-800">${inProgress} งาน</p>
                 </div>
-            </form>
+            </div>
+             <div onclick="applyTaskFilter('completed')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-green-300 transition group">
+                <div class="w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-check-circle"></i>
+                </div>
+                <div>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-green-600 transition">เสร็จสิ้นแล้ว</h4>
+                    <p class="text-2xl font-bold text-slate-800">${completed} งาน</p>
+                </div>
+            </div>
+             <div onclick="applyTaskFilter('urgent')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-red-300 transition group">
+                <div class="w-12 h-12 bg-red-100 text-red-600 rounded-lg flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-fire"></i>
+                </div>
+                <div>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-red-600 transition">เร่งด่วน / เกินกำหนด</h4>
+                    <p class="text-2xl font-bold text-slate-800">${urgent} งาน</p>
+                </div>
+            </div>
         </div>
 
-        <!-- Staff Workload Summary -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-            <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
-                <i class="fa-solid fa-users-gear text-primary"></i> สรุปภาระงานเจ้าหน้าที่
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                ${MOCK_DB.USERS_LIST.filter(u => u.role === 'staff' || u.role === 'admin').map(staff => {
-                    const staffTasks = MOCK_DB.TASKS.filter(t => t.assignee_id === staff.id);
-                    const totalTasks = staffTasks.length;
-                    const completedTasks = staffTasks.filter(t => t.status === 'completed').length;
-                    const pendingTasks = totalTasks - completedTasks;
-                    const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-                    
-                    return `
-                        <div class="p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition">
-                            <div class="flex items-center gap-3 mb-3">
-                                <img src="${staff.avatar}" class="w-10 h-10 rounded-full">
-                                <div class="flex-1 min-w-0">
-                                    <p class="font-bold text-slate-800 text-sm truncate">${staff.name}</p>
-                                    <p class="text-xs text-slate-500">${staff.division}</p>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-3 gap-2 text-center mb-3">
-                                <div class="bg-white p-2 rounded border border-slate-100">
-                                    <p class="text-lg font-bold text-slate-800">${totalTasks}</p>
-                                    <p class="text-[10px] text-slate-500 uppercase font-bold">ทั้งหมด</p>
-                                </div>
-                                <div class="bg-white p-2 rounded border border-green-100">
-                                    <p class="text-lg font-bold text-green-600">${completedTasks}</p>
-                                    <p class="text-[10px] text-green-600 uppercase font-bold">เสร็จ</p>
-                                </div>
-                                <div class="bg-white p-2 rounded border border-yellow-100">
-                                    <p class="text-lg font-bold text-yellow-600">${pendingTasks}</p>
-                                    <p class="text-[10px] text-yellow-600 uppercase font-bold">ค้างอยู่</p>
-                                </div>
-                            </div>
-                            <div class="w-full bg-slate-200 rounded-full h-1.5">
-                                <div class="bg-green-500 h-1.5 rounded-full transition-all" style="width: ${progressPercent}%"></div>
-                            </div>
-                            <p class="text-xs text-slate-400 mt-1 text-right">${progressPercent}% เสร็จสิ้น</p>
-                        </div>
-                    `;
-                }).join('')}
+            <h3 class="font-bold text-lg text-slate-800 mb-4">มอบหมายงาน (Assign Task)</h3>
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <form class="flex flex-col md:flex-row items-end gap-4">
+                    <div class="flex-1 w-full">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">ชื่องาน (Task Name)</label>
+                        <select class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">-- เลือกชื่องาน --</option>
+                            <option value="ตรวจสอบชั้นข้อมูล GIS (GIS Layer Verification)">ตรวจสอบชั้นข้อมูล GIS (GIS Layer Verification)</option>
+                            <option value="วิเคราะห์ข้อมูลเชิงพื้นที่ (Spatial Analysis)">วิเคราะห์ข้อมูลเชิงพื้นที่ (Spatial Analysis)</option>
+                            <option value="จัดทำแผนที่เฉพาะกิจ (Thematic Map Creation)">จัดทำแผนที่เฉพาะกิจ (Thematic Map Creation)</option>
+                            <option value="บริการข้อมูลแผนที่ออนไลน์ (Web Map Service Request)">บริการข้อมูลแผนที่ออนไลน์ (Web Map Service Request)</option>
+                            <option value="อื่นๆ (Other)">อื่นๆ (Other)</option>
+                        </select>
+                    </div>
+                     <div class="flex-1 w-full">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">ผู้รับผิดชอบ (Assignee)</label>
+                        <select class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+                             <option value="">-- เลือกเจ้าหน้าที่ --</option>
+                            ${MOCK_DB.USERS_LIST.filter(u => u.role === 'staff').map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+                        </select>
+                    </div>
+                     <div class="min-w-[180px]">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">กำหนดส่ง (Due Date)</label>
+                        <input type="date" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+                    </div>
+                    <button type="button" onclick="alert('จำลองการมอบหมายงานสำเร็จ')" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition shadow-sm whitespace-nowrap">
+                          <i class="fa-solid fa-user-check mr-1"></i> บันทึก
+                    </button>
+                </form>
             </div>
         </div>
 
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-             <div class="p-6 border-b border-slate-200 bg-slate-50">
-                <h3 class="font-bold text-lg text-slate-800">ติดตามสถานะงาน (Task Tracking)</h3>
+             <div class="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <h3 class="font-bold text-lg text-slate-800">รายการบริการข้อมูลเชิงพื้นที่ (Spatial Data Services)</h3>
+                 <button onclick="applyTaskFilter('')" class="text-xs text-blue-600 hover:text-blue-800 font-bold">แสดงทั้งหมด</button>
             </div>
-             <table class="w-full text-left border-collapse">
+             <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[900px]">
                 <thead>
                     <tr class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider border-b border-slate-200">
                         <th class="p-4 font-bold">งาน</th>
@@ -791,32 +958,60 @@ function renderTasksPage(container) {
                         <th class="p-4 font-bold text-right">จัดการ</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
-                    ${MOCK_DB.TASKS.map(t => `
-                         <tr class="hover:bg-slate-50 transition">
-                            <td class="p-4">
-                                <p class="font-medium text-slate-700">${t.title}</p>
-                                <p class="text-xs text-slate-500 truncate max-w-[200px]">${t.description}</p>
-                            </td>
-                            <td class="p-4 flex items-center gap-2">
-                                <img src="${getUserAvatar(t.assignee_id)}" class="w-6 h-6 rounded-full">
-                                <span class="text-sm text-slate-600">${getUserName(t.assignee_id)}</span>
-                            </td>
-                            <td class="p-4 text-sm text-slate-600">${t.deadline}</td>
-                            <td class="p-4">
-                                <span class="px-2 py-1 rounded-full text-xs font-bold uppercase ${getTaskStatusBadge(t.status)}">
-                                    ${getTaskStatusLabel(t.status)}
-                                </span>
-                            </td>
-                            <td class="p-4 text-right">
-                                <button onclick="openTaskDetailModal(${t.id})" class="text-blue-600 hover:text-blue-800 font-medium text-sm">รายละเอียด</button>
-                            </td>
-                         </tr>
-                    `).join('')}
+                <tbody class="divide-y divide-slate-100" id="tasks-table-body">
+                    <!-- Populated by filterTasks -->
                 </tbody>
             </table>
         </div>
     `;
+
+    window.currentTaskFilter = '';
+    filterTasks();
+}
+
+function applyTaskFilter(status) {
+    window.currentTaskFilter = status;
+    filterTasks();
+}
+
+function filterTasks() {
+    const status = window.currentTaskFilter || '';
+    const filtered = MOCK_DB.TASKS.filter(t => {
+        if (!status) return true;
+        if (status === 'in_progress') return t.status === 'pending' || t.status === 'in_progress';
+        if (status === 'urgent') return t.status === 'urgent' || t.status === 'overdue';
+        return t.status === status;
+    });
+
+    const tbody = document.getElementById('tasks-table-body');
+    if(!tbody) return;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-400">ไม่พบข้อมูลงาน</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(t => `
+            <tr class="hover:bg-slate-50 transition">
+            <td class="p-4">
+                <p class="font-medium text-slate-700">${t.title}</p>
+                <p class="text-xs text-slate-500 truncate max-w-[200px]">${t.description}</p>
+            </td>
+            <td class="p-4 flex items-center gap-2">
+                <img src="${getUserAvatar(t.assignee_id)}" class="w-6 h-6 rounded-full">
+                <span class="text-sm text-slate-600">${getUserName(t.assignee_id)}</span>
+            </td>
+            <td class="p-4 text-sm text-slate-600">${t.deadline}</td>
+            <td class="p-4">
+                <span class="px-2 py-1 rounded-full text-xs font-bold uppercase ${getTaskStatusBadge(t.status)}">
+                    ${getTaskStatusLabel(t.status)}
+                </span>
+            </td>
+            <td class="p-4 text-right">
+                <button onclick="openTaskDetailModal(${t.id})" class="text-blue-600 hover:text-blue-800 font-medium text-sm">รายละเอียด</button>
+            </td>
+            </tr>
+    `).join('');
 }
 
 function getTaskStatusBadge(status) {
@@ -907,39 +1102,39 @@ function renderAssessmentPage(container) {
     container.innerHTML = `
         <!-- Summary Stats -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+            <div onclick="applyAssessmentFilter('')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-blue-300 transition group">
                 <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-xl">
                     <i class="fa-solid fa-users"></i>
                 </div>
                 <div>
-                    <h4 class="text-slate-500 text-sm font-bold uppercase">เจ้าหน้าที่ทั้งหมด</h4>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-blue-600 transition">เจ้าหน้าที่ทั้งหมด</h4>
                     <p class="text-2xl font-bold text-slate-800">${MOCK_DB.USERS_LIST.filter(u => u.role === 'staff' || u.role === 'admin').length} คน</p>
                 </div>
             </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+            <div onclick="applyAssessmentFilter('completed')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-green-300 transition group">
                 <div class="w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center text-xl">
                     <i class="fa-solid fa-check-double"></i>
                 </div>
                 <div>
-                    <h4 class="text-slate-500 text-sm font-bold uppercase">งานเสร็จสิ้นรวม</h4>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-green-600 transition">งานเสร็จสิ้นรวม</h4>
                     <p class="text-2xl font-bold text-slate-800">${MOCK_DB.TASKS.filter(t => t.status === 'completed').length} งาน</p>
                 </div>
             </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+            <div onclick="applyAssessmentFilter('pending')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-yellow-300 transition group">
                 <div class="w-12 h-12 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center text-xl">
                     <i class="fa-solid fa-hourglass-half"></i>
                 </div>
                 <div>
-                    <h4 class="text-slate-500 text-sm font-bold uppercase">งานค้างอยู่รวม</h4>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-yellow-600 transition">งานค้างอยู่รวม</h4>
                     <p class="text-2xl font-bold text-slate-800">${MOCK_DB.TASKS.filter(t => t.status !== 'completed').length} งาน</p>
                 </div>
             </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+            <div onclick="applyAssessmentFilter('score')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-purple-300 transition group">
                 <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center text-xl">
                     <i class="fa-solid fa-star"></i>
                 </div>
                 <div>
-                    <h4 class="text-slate-500 text-sm font-bold uppercase">คะแนนเฉลี่ย</h4>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-purple-600 transition">คะแนนเฉลี่ย</h4>
                     <p class="text-2xl font-bold text-slate-800">${Math.round(MOCK_DB.ASSESSMENTS.reduce((sum, a) => sum + a.score, 0) / MOCK_DB.ASSESSMENTS.length)}/100</p>
                 </div>
             </div>
@@ -951,73 +1146,11 @@ function renderAssessmentPage(container) {
                 <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
                     <i class="fa-solid fa-user-chart text-primary"></i> ภาพรวมผลงานเจ้าหน้าที่
                 </h3>
-                <span class="text-sm text-slate-500">รอบการประเมิน: Q1/2567</span>
+                 <button onclick="applyAssessmentFilter('')" class="text-xs text-blue-600 hover:text-blue-800 font-bold">แสดงทั้งหมด</button>
             </div>
             <div class="p-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    ${MOCK_DB.USERS_LIST.filter(u => u.role === 'staff' || u.role === 'admin').map(staff => {
-                        const staffTasks = MOCK_DB.TASKS.filter(t => t.assignee_id === staff.id);
-                        const totalTasks = staffTasks.length;
-                        const completedTasks = staffTasks.filter(t => t.status === 'completed').length;
-                        const pendingTasks = totalTasks - completedTasks;
-                        const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-                        const staffAssessments = MOCK_DB.ASSESSMENTS.filter(a => a.staff_id === staff.id);
-                        const avgScore = staffAssessments.length > 0 ? Math.round(staffAssessments.reduce((sum, a) => sum + a.score, 0) / staffAssessments.length) : 0;
-                        const starCount = Math.round(avgScore / 20);
-                        
-                        return `
-                            <div class="bg-gradient-to-br from-slate-50 to-white rounded-xl p-6 border border-slate-200 hover:shadow-md transition">
-                                <div class="flex items-start gap-4 mb-4">
-                                    <img src="${staff.avatar}" class="w-16 h-16 rounded-full border-4 border-white shadow-sm">
-                                    <div class="flex-1">
-                                        <h4 class="font-bold text-slate-800 text-lg">${staff.name}</h4>
-                                        <p class="text-sm text-slate-500">${staff.division} | ${staff.group}</p>
-                                        <div class="flex items-center gap-1 mt-1">
-                                            ${[1,2,3,4,5].map(i => `<i class="fa-${i <= starCount ? 'solid' : 'regular'} fa-star text-yellow-400 text-sm"></i>`).join('')}
-                                            <span class="text-xs text-slate-400 ml-2">(${avgScore}/100)</span>
-                                        </div>
-                                    </div>
-                                    <span class="px-2 py-1 rounded-full text-xs font-bold ${staff.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">
-                                        ${staff.role === 'admin' ? 'Admin' : 'Staff'}
-                                    </span>
-                                </div>
-
-                                <div class="grid grid-cols-3 gap-3 mb-4">
-                                    <div class="bg-white p-3 rounded-lg border border-slate-100 text-center">
-                                        <p class="text-xl font-bold text-slate-800">${totalTasks}</p>
-                                        <p class="text-[10px] text-slate-500 uppercase font-bold">งานทั้งหมด</p>
-                                    </div>
-                                    <div class="bg-white p-3 rounded-lg border border-green-100 text-center">
-                                        <p class="text-xl font-bold text-green-600">${completedTasks}</p>
-                                        <p class="text-[10px] text-green-600 uppercase font-bold">เสร็จแล้ว</p>
-                                    </div>
-                                    <div class="bg-white p-3 rounded-lg border border-yellow-100 text-center">
-                                        <p class="text-xl font-bold text-yellow-600">${pendingTasks}</p>
-                                        <p class="text-[10px] text-yellow-600 uppercase font-bold">ค้างอยู่</p>
-                                    </div>
-                                </div>
-
-                                <div class="mb-3">
-                                    <div class="flex justify-between text-xs mb-1">
-                                        <span class="text-slate-500">ความคืบหน้างาน</span>
-                                        <span class="font-bold text-slate-700">${progressPercent}%</span>
-                                    </div>
-                                    <div class="w-full bg-slate-200 rounded-full h-2">
-                                        <div class="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all" style="width: ${progressPercent}%"></div>
-                                    </div>
-                                </div>
-
-                                <div class="flex gap-2">
-                                    <button onclick="openStaffPerformanceModal(${staff.id})" class="flex-1 bg-primary text-white py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition">
-                                        <i class="fa-solid fa-chart-line mr-1"></i> ดูผลงาน
-                                    </button>
-                                    <button onclick="openAddAssessmentModal(${staff.id})" class="flex-1 bg-white border border-slate-300 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 transition">
-                                        <i class="fa-solid fa-plus mr-1"></i> ประเมิน
-                                    </button>
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="staff-performance-grid">
+                    <!-- Populated by filterAssessments -->
                 </div>
             </div>
         </div>
@@ -1059,6 +1192,123 @@ function renderAssessmentPage(container) {
             </table>
         </div>
     `;
+
+    window.currentAssessmentFilter = '';
+    filterAssessments();
+}
+
+function applyAssessmentFilter(type) {
+    window.currentAssessmentFilter = type;
+    filterAssessments();
+}
+
+function filterAssessments() {
+    const type = window.currentAssessmentFilter || '';
+    const container = document.getElementById('staff-performance-grid');
+    if (!container) return;
+
+    let staffList = MOCK_DB.USERS_LIST.filter(u => u.role === 'staff' || u.role === 'admin');
+
+    // Filter Logic
+    if (type === 'completed') {
+        // Filter staff who have distinct completed tasks
+        staffList = staffList.filter(u => {
+            return MOCK_DB.TASKS.some(t => t.assignee_id === u.id && t.status === 'completed');
+        }).sort((a,b) => {
+             const aCount = MOCK_DB.TASKS.filter(t => t.assignee_id === a.id && t.status === 'completed').length;
+             const bCount = MOCK_DB.TASKS.filter(t => t.assignee_id === b.id && t.status === 'completed').length;
+             return bCount - aCount;
+        });
+    } else if (type === 'pending') {
+        // Filter staff who have pending tasks
+         staffList = staffList.filter(u => {
+            return MOCK_DB.TASKS.some(t => t.assignee_id === u.id && t.status !== 'completed');
+        }).sort((a,b) => {
+             const aCount = MOCK_DB.TASKS.filter(t => t.assignee_id === a.id && t.status !== 'completed').length;
+             const bCount = MOCK_DB.TASKS.filter(t => t.assignee_id === b.id && t.status !== 'completed').length;
+             return bCount - aCount;
+        });
+    } else if (type === 'score') {
+         // Filter staff who have assessments and sort by AVG score
+          staffList = staffList.filter(u => {
+            return MOCK_DB.ASSESSMENTS.some(a => a.staff_id === u.id);
+        }).sort((a,b) => {
+             const aScores = MOCK_DB.ASSESSMENTS.filter(x => x.staff_id === a.id);
+             const bScores = MOCK_DB.ASSESSMENTS.filter(x => x.staff_id === b.id);
+             const aAvg = aScores.length ? aScores.reduce((s, x) => s + x.score, 0) / aScores.length : 0;
+             const bAvg = bScores.length ? bScores.reduce((s, x) => s + x.score, 0) / bScores.length : 0;
+             return bAvg - aAvg;
+        });
+    }
+
+    if (staffList.length === 0) {
+        container.innerHTML = `<div class="col-span-1 md:col-span-2 text-center p-8 text-slate-400">ไม่พบเจ้าหน้าที่ตามเงื่อนไข</div>`;
+        return;
+    }
+
+    container.innerHTML = staffList.map(staff => {
+        const staffTasks = MOCK_DB.TASKS.filter(t => t.assignee_id === staff.id);
+        const totalTasks = staffTasks.length;
+        const completedTasks = staffTasks.filter(t => t.status === 'completed').length;
+        const pendingTasks = totalTasks - completedTasks;
+        const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        const staffAssessments = MOCK_DB.ASSESSMENTS.filter(a => a.staff_id === staff.id);
+        const avgScore = staffAssessments.length > 0 ? Math.round(staffAssessments.reduce((sum, a) => sum + a.score, 0) / staffAssessments.length) : 0;
+        const starCount = Math.round(avgScore / 20);
+        
+        return `
+            <div class="bg-gradient-to-br from-slate-50 to-white rounded-xl p-6 border border-slate-200 hover:shadow-md transition">
+                <div class="flex items-start gap-4 mb-4">
+                    <img src="${staff.avatar}" class="w-16 h-16 rounded-full border-4 border-white shadow-sm">
+                    <div class="flex-1">
+                        <h4 class="font-bold text-slate-800 text-lg">${staff.name}</h4>
+                        <p class="text-sm text-slate-500">${staff.division} | ${staff.group}</p>
+                        <div class="flex items-center gap-1 mt-1">
+                            ${[1,2,3,4,5].map(i => `<i class="fa-${i <= starCount ? 'solid' : 'regular'} fa-star text-yellow-400 text-sm"></i>`).join('')}
+                            <span class="text-xs text-slate-400 ml-2">(${avgScore}/100)</span>
+                        </div>
+                    </div>
+                    <span class="px-2 py-1 rounded-full text-xs font-bold ${staff.role === 'admin' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">
+                        ${staff.role === 'admin' ? 'Admin' : 'Staff'}
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <div class="bg-white p-3 rounded-lg border border-slate-100 text-center">
+                        <p class="text-xl font-bold text-slate-800">${totalTasks}</p>
+                        <p class="text-[10px] text-slate-500 uppercase font-bold">งานทั้งหมด</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg border border-green-100 text-center">
+                        <p class="text-xl font-bold text-green-600">${completedTasks}</p>
+                        <p class="text-[10px] text-green-600 uppercase font-bold">เสร็จแล้ว</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg border border-yellow-100 text-center">
+                        <p class="text-xl font-bold text-yellow-600">${pendingTasks}</p>
+                        <p class="text-[10px] text-yellow-600 uppercase font-bold">ค้างอยู่</p>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="flex justify-between text-xs mb-1">
+                        <span class="text-slate-500">ความคืบหน้างาน</span>
+                        <span class="font-bold text-slate-700">${progressPercent}%</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2">
+                        <div class="bg-gradient-to-r from-blue-500 to-green-500 h-2 rounded-full transition-all" style="width: ${progressPercent}%"></div>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="openStaffPerformanceModal(${staff.id})" class="flex-1 bg-primary text-white py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition">
+                        <i class="fa-solid fa-chart-line mr-1"></i> ดูผลงาน
+                    </button>
+                    <button onclick="openAddAssessmentModal(${staff.id})" class="flex-1 bg-white border border-slate-300 text-slate-700 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 transition">
+                        <i class="fa-solid fa-plus mr-1"></i> ประเมิน
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 // Helpers
@@ -1229,82 +1479,146 @@ function renderDataRequestPage(container) {
     const rejected = requests.filter(r => r.status === 'rejected').length;
 
     container.innerHTML = `
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div onclick="applyRequestFilter('')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-blue-300 transition group">
+                <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
+                <div>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-blue-600 transition">คำขอทั้งหมด</h4>
+                    <p class="text-2xl font-bold text-slate-800">${requests.length} รายการ</p>
+                </div>
+            </div>
+            <div onclick="applyRequestFilter('pending')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-yellow-300 transition group">
                 <div class="w-12 h-12 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center text-xl">
                     <i class="fa-solid fa-clock"></i>
                 </div>
                 <div>
-                    <h4 class="text-slate-500 text-sm font-bold uppercase">รอการตรวจสอบ</h4>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-yellow-600 transition">รอการตรวจสอบ</h4>
                     <p class="text-2xl font-bold text-slate-800">${pending} รายการ</p>
                 </div>
             </div>
-             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+             <div onclick="applyRequestFilter('approved')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-green-300 transition group">
                 <div class="w-12 h-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center text-xl">
                     <i class="fa-solid fa-check-circle"></i>
                 </div>
                 <div>
-                    <h4 class="text-slate-500 text-sm font-bold uppercase">อนุมัติแล้ว</h4>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-green-600 transition">อนุมัติแล้ว</h4>
                     <p class="text-2xl font-bold text-slate-800">${approved} รายการ</p>
                 </div>
             </div>
-             <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
+             <div onclick="applyRequestFilter('rejected')" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4 cursor-pointer hover:shadow-md hover:border-red-300 transition group">
                 <div class="w-12 h-12 bg-red-100 text-red-600 rounded-lg flex items-center justify-center text-xl">
                     <i class="fa-solid fa-times-circle"></i>
                 </div>
                 <div>
-                    <h4 class="text-slate-500 text-sm font-bold uppercase">ปฏิเสธแล้ว</h4>
+                    <h4 class="text-slate-500 text-sm font-bold uppercase group-hover:text-red-600 transition">ปฏิเสธแล้ว</h4>
                     <p class="text-2xl font-bold text-slate-800">${rejected} รายการ</p>
                 </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-             <div class="p-6 border-b border-slate-200 bg-slate-50">
-                <h3 class="font-bold text-lg text-slate-800">รายการคำขอข้อมูล (Data Requests)</h3>
+        <!-- Assign Staff Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+            <h3 class="font-bold text-lg text-slate-800 mb-4">มอบหมายเจ้าหน้าที่รับผิดชอบ (Assign Staff)</h3>
+            <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <form class="flex flex-col md:flex-row items-end gap-4">
+                    <div class="flex-1 w-full">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">เลือกคำขอ (Select Request)</label>
+                        <select class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">-- เลือกรายการ --</option>
+                            ${requests.filter(r => r.status === 'pending').map(r => `<option value="${r.id}">[${r.date}] ${r.topic} - ${r.userName}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="flex-1 w-full">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">เลือกเจ้าหน้าที่ (Select Staff)</label>
+                        <select class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+                             <option value="">-- เลือกเจ้าหน้าที่ --</option>
+                             ${MOCK_DB.USERS_LIST.filter(u => u.role === 'staff').map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+                        </select>
+                    </div>
+                     <div class="flex-1 w-full">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">กำหนดส่ง (Due Date)</label>
+                        <input type="date" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white">
+                    </div>
+                    <button type="button" onclick="alert('มอบหมายงานเรียบร้อยแล้ว')" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition shadow-sm whitespace-nowrap">
+                        <i class="fa-solid fa-user-check mr-1"></i> บันทึก
+                    </button>
+                </form>
             </div>
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider border-b border-slate-200">
-                        <th class="p-4 font-bold">วันที่ขอ</th>
-                        <th class="p-4 font-bold">ผู้ขอข้อมูล</th>
-                        <th class="p-4 font-bold">หัวข้อ request</th>
-                        <th class="p-4 font-bold">ผู้รับผิดชอบ</th>
-                        <th class="p-4 font-bold">สถานะ</th>
-                        <th class="p-4 font-bold text-right">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    ${requests.map(r => `
-                        <tr class="hover:bg-slate-50 transition">
-                            <td class="p-4 text-slate-600 text-sm">${r.date}</td>
-                           <td class="p-4">
-                                <span class="font-bold text-slate-700 block">${r.userName}</span>
-                                <span class="text-xs text-slate-400">ID: ${r.userId}</span>
-                            </td>
-                            <td class="p-4 text-slate-700 font-medium">${r.topic}</td>
-                            <td class="p-4">
-                                ${r.assignee_id ? `
-                                    <div class="flex items-center gap-2">
-                                        <img src="${getUserAvatar(r.assignee_id)}" class="w-6 h-6 rounded-full">
-                                        <span class="text-sm text-slate-600">${getUserName(r.assignee_id)}</span>
-                                    </div>
-                                ` : '<span class="text-xs text-slate-400">ยังไม่มอบหมาย</span>'}
-                            </td>
-                            <td class="p-4">
-                                <span class="px-2 py-1 rounded-full text-xs font-bold uppercase ${getStatusBadge(r.status)}">
-                                    ${getStatusLabel(r.status)}
-                                </span>
-                            </td>
-                            <td class="p-4 text-right">
-                                <button onclick="openRequestModal(${r.id})" class="text-blue-600 hover:text-blue-800 font-medium text-sm">รายละเอียด</button>
-                            </td>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+             <div class="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <h3 class="font-bold text-lg text-slate-800">รายการคำขอข้อมูล (Data Requests)</h3>
+                <button onclick="applyRequestFilter('')" class="text-xs text-blue-600 hover:text-blue-800 font-bold">แสดงทั้งหมด</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[900px]">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider border-b border-slate-200">
+                            <th class="p-4 font-bold">วันที่ขอ</th>
+                            <th class="p-4 font-bold">ผู้ขอข้อมูล</th>
+                            <th class="p-4 font-bold">หัวข้อ request</th>
+                            <th class="p-4 font-bold">ผู้รับผิดชอบ</th>
+                            <th class="p-4 font-bold">สถานะ</th>
+                            <th class="p-4 font-bold text-right">จัดการ</th>
                         </tr>
-                    `).join('')}
+                    </thead>
+                    <tbody class="divide-y divide-slate-100" id="requests-table-body">
+                    <!-- Populated by filterRequests -->
                 </tbody>
             </table>
         </div>
     `;
+
+    window.currentRequestFilter = '';
+    filterRequests();
+}
+
+function applyRequestFilter(status) {
+    window.currentRequestFilter = status;
+    filterRequests();
+}
+
+function filterRequests() {
+    const status = window.currentRequestFilter || '';
+    const filtered = MOCK_DB.DATA_REQUESTS.filter(r => !status || r.status === status);
+
+    const tbody = document.getElementById('requests-table-body');
+    if(!tbody) return;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400">ไม่พบคำขอข้อมูล</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(r => `
+        <tr class="hover:bg-slate-50 transition">
+            <td class="p-4 text-slate-600 text-sm">${r.date}</td>
+            <td class="p-4">
+                <span class="font-bold text-slate-700 block">${r.userName}</span>
+                <span class="text-xs text-slate-400">ID: ${r.userId}</span>
+            </td>
+            <td class="p-4 text-slate-700 font-medium">${r.topic}</td>
+            <td class="p-4">
+                ${r.assignee_id ? `
+                    <div class="flex items-center gap-2">
+                        <img src="${getUserAvatar(r.assignee_id)}" class="w-6 h-6 rounded-full">
+                        <span class="text-sm text-slate-600">${getUserName(r.assignee_id)}</span>
+                    </div>
+                ` : '<span class="text-xs text-slate-400">ยังไม่มอบหมาย</span>'}
+            </td>
+            <td class="p-4">
+                <span class="px-2 py-1 rounded-full text-xs font-bold uppercase ${getStatusBadge(r.status)}">
+                    ${getStatusLabel(r.status)}
+                </span>
+            </td>
+            <td class="p-4 text-right">
+                <button onclick="openRequestModal(${r.id})" class="text-blue-600 hover:text-blue-800 font-medium text-sm">รายละเอียด</button>
+            </td>
+        </tr>
+    `).join('');
 }
 
 function getStatusBadge(status) {

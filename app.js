@@ -74,32 +74,35 @@ function toggleSidebar() {
     const sidebar = document.getElementById('main-sidebar');
     if (!sidebar) return;
     
-    // Mobile: Toggle visibility by adding/removing 'hidden'
-    // The sidebar has class "flex hidden md:flex" initially
-    // On mobile (< 768px): md:flex doesn't apply, so 'hidden' hides it
-    // We simply toggle 'hidden' to show/hide
-    
-    if (sidebar.classList.contains('hidden')) {
-        // Show sidebar
-        sidebar.classList.remove('hidden');
-        // Add overlay for mobile
-        if (window.innerWidth < 768) {
+    // Check if desktop
+    if (window.innerWidth >= 768) {
+        // Desktop: Toggle 'md:flex' to show/hide
+        // Since base class is 'hidden', removing 'md:flex' will hide it.
+        sidebar.classList.toggle('md:flex');
+    } else {
+        // Mobile: Toggle 'hidden' and overlay
+        if (sidebar.classList.contains('hidden')) {
+            // Show
+            sidebar.classList.remove('hidden');
+            
+            // Add overlay
             let overlay = document.getElementById('sidebar-overlay');
             if (!overlay) {
                 overlay = document.createElement('div');
                 overlay.id = 'sidebar-overlay';
-                overlay.className = 'fixed inset-0 bg-black/50 z-[5] md:hidden';
+                overlay.className = 'fixed inset-0 bg-black/50 z-[25] md:hidden'; // z-25 to be below sidebar (z-30) but above content
                 overlay.onclick = toggleSidebar;
                 document.body.appendChild(overlay);
             }
             overlay.classList.remove('hidden');
+        } else {
+            // Hide
+            sidebar.classList.add('hidden');
+            
+            // Remove overlay
+            const overlay = document.getElementById('sidebar-overlay');
+            if (overlay) overlay.classList.add('hidden');
         }
-    } else {
-        // Hide sidebar
-        sidebar.classList.add('hidden');
-        // Remove overlay
-        const overlay = document.getElementById('sidebar-overlay');
-        if (overlay) overlay.classList.add('hidden');
     }
 }
 
@@ -333,8 +336,9 @@ function renderDashboard() {
                 </div>
             </div>
 
-            <!-- 1. KPI Cards - 6 cards -->
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <!-- 1. KPI Cards - Responsive Grid -->
+            <!-- Mobile: 2 cols, Tablet: 3 cols, Desktop: 6 cols (on xl) -->
+            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 group hover:shadow-md hover:border-blue-200 transition">
                     <div class="flex items-center gap-3 mb-2">
                         <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
@@ -442,7 +446,8 @@ function renderDashboard() {
             </div>
 
             <!-- 4. Data Quality & Governance Section -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Mobile: Stacked, Tablet: 2 cols, Desktop (XL): 3 cols -->
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
                     <div class="absolute top-0 right-0 p-4 opacity-5">
                         <i class="fa-solid fa-scale-balanced text-9xl"></i>
@@ -879,7 +884,7 @@ function renderHome() {
                             </div>
                             <h2 class="text-xl font-bold text-slate-800 mb-1 group-hover:text-primary transition">คลังข้อมูล</h2>
                             <h3 class="text-sm font-medium text-slate-500 mb-3">(Data Catalog)</h3>
-                            <p class="text-sm text-slate-600 mb-4 line-clamp-2">ค้นหาชุดข้อมูลสาธารณะต่างๆ</p>
+                            <p class="text-sm text-slate-600 mb-4 line-clamp-2">คลังข้อมูลทรัพยากรน้ำ และข้อมูลสนับสนุนที่เกี่ยวข้อง</p>
                             <span class="text-primary text-sm font-bold flex items-center gap-2">เข้าใช้งาน <i class="fa-solid fa-arrow-right group-hover:translate-x-1 transition"></i></span>
                         </div>
                     </div>
@@ -891,7 +896,7 @@ function renderHome() {
                             <div class="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition">
                                 <i class="fa-solid fa-map-location-dot"></i>
                             </div>
-                            <h2 class="text-xl font-bold text-slate-800 mb-1 group-hover:text-indigo-600 transition">แผนที่สารสนเทศ</h2>
+                            <h2 class="text-xl font-bold text-slate-800 mb-1 group-hover:text-indigo-600 transition">บริการข้อมูลเชิงพื้นที่</h2>
                             <h3 class="text-sm font-medium text-slate-500 mb-3">(GIS Map)</h3>
                             <p class="text-sm text-slate-600 mb-4 line-clamp-2">ดูข้อมูลเชิงพื้นที่และแผนที่</p>
                             <span class="text-indigo-600 text-sm font-bold flex items-center gap-2">ดูแผนที่ <i class="fa-solid fa-arrow-right group-hover:translate-x-1 transition"></i></span>
@@ -1346,9 +1351,9 @@ function renderMap() {
             <div class="w-full md:w-1/3 bg-white border border-slate-200 shadow-sm rounded-xl overflow-y-auto flex flex-col">
                 <div class="p-4 border-b border-slate-200 bg-slate-50 sticky top-0 z-10">
                     <h2 class="font-bold text-slate-800 flex items-center gap-2">
-                        <i class="fa-solid fa-pen-to-square text-primary"></i> คำขอจัดทำข้อมูล/แผนที่
+                        <i class="fa-solid fa-pen-to-square text-primary"></i> คำขอรับบริการข้อมูล/แผนที่
                     </h2>
-                    <p class="text-xs text-slate-500">กรอกรายละเอียดเพื่อขอข้อมูลเฉพาะพื้นที่</p>
+                    <p class="text-xs text-slate-500">กรอกรายละเอียดเพื่อขอรับบริการข้อมูล/แผนที่</p>
                 </div>
                 
                 <form class="p-5 space-y-6 flex-1">
